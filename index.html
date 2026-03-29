@@ -300,9 +300,25 @@ async function sendMessage() {
 
   const data = await res.json();
   const reply = data.choices[0].message.content;
+    document.getElementById("typing").classList.remove("show");
 
-  document.getElementById("typing").classList.remove("show");
-  addBubble("yezi", reply);
+    // 【核心改动】：按标点符号分割句子
+    // 这个正则表达式会匹配：句号、问号、感叹号、省略号（包含中英文）
+    const sentences = reply.split(/([。！？…\n!?.])/g).reduce((acc, cur, i) => {
+      if (i % 2 === 0) acc.push(cur + (reply.split(/([。！？…\n!?.])/g)[i + 1] || ""));
+      return acc;
+    }, []).filter(s => s.trim().length > 0);
+
+    // 逐句发送，每句间隔 1.5 秒
+    for (let i = 0; i < sentences.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, i === 0 ? 0 : 1500));
+      addBubble("yezi", sentences[i]);
+    }
+
+    history.push({role: "assistant", content: reply});
+    localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
+    updateMood(reply);
+    
   history.push({role: "assistant", content: reply});
   localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
   updateMood(reply);
