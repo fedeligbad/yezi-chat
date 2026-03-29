@@ -200,29 +200,11 @@ init();
 function handleSetup() {
   const name = document.getElementById("name-input").value.trim();
   const key = document.getElementById("key-input").value.trim();
-
-  // 1. 检查名字是否填写
-  if (!name) { 
-    document.getElementById("setup-error").textContent = "告诉我你叫什么"; 
-    return; 
-  }
-
-  // 2. 核心修改：不再检查长度，只看是不是 1208
-  if (key !== "1208") { 
-    document.getElementById("setup-error").textContent = "密码不对哦"; 
-    return; 
-  }
-
-  USER_NAME = name;
-
-  // 3. 修改：先把 API 变量设为一个占位符（假值）
-  // 这样推送到 GitHub 是安全的，不会被 Google 发现
-  // 后面我们接入 GLM 的时候，会在这里做统一调整
-  GEMINI_KEY = "WAITING_FOR_GLM_CONFIG"; 
-
+  if (!name) { document.getElementById("setup-error").textContent = "告诉我你叫什么"; return; }
+  if (!key || key.length < 20) { document.getElementById("setup-error").textContent = "密钥好像不对"; return; }
+  USER_NAME = name; GEMINI_KEY = key;
   document.getElementById("setup-screen").classList.add("hidden");
   setTimeout(() => sendGreeting(name), 500);
-}
 }
 
 async function sendGreeting(name) {
