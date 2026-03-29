@@ -77,7 +77,7 @@ textarea::placeholder{color:var(--text-muted)}
   height: auto;
   position: fixed;
   bottom: 12vh; /* 距离底部 12% */
-  left: 35vw; /* 居中定位 (50vw - 15vw) 避免和拖拽代码冲突 */
+  left: 35vw; /* 居中定位避免和拖拽代码冲突 */
   z-index: 100;
   cursor: grab; /* 提示可以拖拽 */
 }
@@ -93,7 +93,7 @@ textarea::placeholder{color:var(--text-muted)}
 <body>
 <div class="app">
   <div class="setup-screen" id="setup-screen">
-    <img src="https://image.yeci.workers.dev/image_ee6f83.jpg" class="setup-avatar" id="setup-avatar-img">
+    <img src="./image_ee6f83.jpg" class="setup-avatar" id="setup-avatar-img">
     <div class="setup-title">叶子</div>
     <div class="setup-sub">请输入你的名字和密码</div>
     <div class="setup-fields">
@@ -108,7 +108,7 @@ textarea::placeholder{color:var(--text-muted)}
     <div class="profile-section">
       <div class="avatar-wrap">
         <div class="avatar-ring"></div>
-        <img src="https://image.yeci.workers.dev/image_ee6f83.jpg" class="avatar" id="yezi-img">
+        <img src="./image_ee6f83.jpg" class="avatar" id="yezi-img">
       </div>
       <div class="name">叶子</div>
     </div>
@@ -149,7 +149,7 @@ textarea::placeholder{color:var(--text-muted)}
   </div>
 </div>
 
-<img src="https://image.yeci.workers.dev/image_ee6f83.jpg" id="yezi-figure">
+<img src="./image_ee6f83.jpg" id="yezi-figure">
 <div id="char-bubble"></div>
 
 <script>
@@ -159,8 +159,9 @@ const START_DATE = new Date("2024-03-27");
 let isAnimating = false;
 let atEnd = false;
 let bubbleTimer;
-const FRAMES_FORWARD = ["https://image.yeci.workers.dev/image_ee6f83.jpg"];
-const FRAMES_BACKWARD = ["https://image.yeci.workers.dev/image_ee6f83.jpg"];
+// 帮你把动画帧路径变回原来的本地形式
+const FRAMES_FORWARD = ["./image_ee6f83.jpg"];
+const FRAMES_BACKWARD = ["./image_ee6f83.jpg"];
 const PHRASES = {
   0: ["怎么了？", "我在听。"],
   5: ["嗯？", "看着你呢。"]
@@ -199,7 +200,6 @@ function onCharClick() {
 }
 
 const figEl = document.getElementById("yezi-figure");
-let figTouched = false;
 figEl.addEventListener("click", function(e) {
   if (!isDragging) onCharClick(); 
 });
