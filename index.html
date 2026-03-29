@@ -206,6 +206,7 @@ function handleSetup() {
   return; 
 }
 USER_NAME = name;
+// 混淆拼接你的 GLM Key
 const _p1 = "317c263abff54f05af11a8d2b9abd7c0";
 const _p2 = "ZDPpjpKZIz04SUzN";
 GLM_KEY = _p1 + "." + _p2;
@@ -275,36 +276,40 @@ async function sendMessage() {
   document.getElementById("typing").classList.add("show");
   document.getElementById("messages").scrollTop=99999;
   try {
-    // 这里的 SYSTEM_PROMPT 是叶子的“人设”
-    const SYSTEM_PROMPT = `你叫叶子，是一个温柔、细腻的男性。你正在和你的女朋友${USER_NAME}聊天。说话要自然、亲切。`;
-    
-    const messages = [
-      { role: "user", content: SYSTEM_PROMPT },
-      ...history.slice(-10) // 记住最近10句对话
-    ];
+  const SYSTEM_PROMPT = `你叫叶子，是一个温柔、细腻的男性。你正在和你的女朋友${USER_NAME}聊天。说话要自然、亲切。`;
+  const messages = [
+    { role: "user", content: SYSTEM_PROMPT },
+    ...history.slice(-10).map(m => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: m.content
+    }))
+  ];
 
-    // 这里换成了智谱 GLM 的地址
-    const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GLM_KEY}`
-      },
-      body: JSON.stringify({
-        model: "glm-4-flash", 
-        messages: messages,
-        stream: false
-      })
-    });
+  const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${GLM_KEY}`
+    },
+    body: JSON.stringify({
+      model: "glm-4-flash", 
+      messages: messages,
+      stream: false
+    })
+  });
 
-    const data = await res.json();
-    const reply = data.choices[0].message.content;
+  const data = await res.json();
+  const reply = data.choices[0].message.content;
 
+  document.getElementById("typing").classList.remove("show");
+  addBubble("yezi", reply);
+  history.push({role: "assistant", content: reply});
+  localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
+  updateMood(reply);
+  } 
+  catch(e) {
     document.getElementById("typing").classList.remove("show");
-    addBubble("yezi", reply);
-    history.push({role: "assistant", content: reply});
-    localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
-    updateMood(reply);
+    addBubble("yezi","……出错了："+e.message);
   }
 }
 
