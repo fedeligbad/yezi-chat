@@ -285,24 +285,36 @@ async function sendMessage() {
   addBubble("user",text);
   document.getElementById("typing").classList.add("show");
   document.getElementById("messages").scrollTop=99999;
-  try {
-    const nameHint = USER_NAME ? "她的名字是"+USER_NAME+"，可以偶尔叫她名字。" : "";
-    const ctx=history.slice(-20).map(m=>(m.role==="user"?"她":"你")+"："+m.content).join("\n");
-    const prompt=SYSTEM+"\n"+nameHint+"\n\n对话：\n"+ctx+"\n\n她刚说："+text+"\n\n你回复：";
-    const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+GEMINI_KEY,{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:600}})
+try {
+    // 这里的 SYSTEM_PROMPT 是叶子的“人设”
+    const SYSTEM_PROMPT = `你叫叶子，是一个温柔、细腻的男性。你正在和你的女朋友${USER_NAME}聊天。说话要自然、亲切。`;
+    
+    const messages = [
+      { role: "user", content: SYSTEM_PROMPT },
+      ...history.slice(-10) // 记住最近10句对话
+    ];
+
+    // 这里换成了智谱 GLM 的地址
+    const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GLM_KEY}`
+      },
+      body: JSON.stringify({
+        model: "glm-4-flash", 
+        messages: messages,
+        stream: false
+      })
     });
-    const data=await res.json();
-    if(!res.ok) throw new Error("API "+res.status+": "+(data.error?.message||"error"));
-    const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||"……";
+
+    const data = await res.json();
+    const reply = data.choices[0].message.content;
+
     document.getElementById("typing").classList.remove("show");
-    const parts=reply.split("\n").filter(p=>p.trim());
-    for(let i=0;i<parts.length;i++) {
-      if(i>0) await sleep(600+Math.random()*400);
-      addBubble("yezi",parts[i].trim());
-    }
-    history.push({role:"assistant",content:reply});
+    addBubble("yezi", reply);
+    history.push({role: "assistant", content: reply});
+    localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
     updateMood(reply);
   } catch(e) {
     document.getElementById("typing").classList.remove("show");
