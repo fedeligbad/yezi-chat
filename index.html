@@ -117,7 +117,17 @@ textarea::placeholder{color:var(--text-muted)}
 </div>
 <script>
 const START_DATE = new Date("2026-03-28");
-let GEMINI_KEY = "", USER_NAME = "", history = [];
+let USER_NAME = "";
+let GLM_KEY = "";
+let history = [];
+
+// 心情配置不用动，保持你原来的
+const moodConfig = {
+  "想你了": "https://api.iconify.design/pixelarticons:heart.svg?color=%23e91e63",
+  "有点累": "https://api.iconify.design/pixelarticons:bed.svg?color=%234a7ab8",
+  "心情不错": "https://api.iconify.design/pixelarticons:sun.svg?color=%23ffb300",
+  "在想你": "https://api.iconify.design/pixelarticons:human-handsup.svg?color=%232a5a9a"
+};
 const SYSTEM = "你叫叶子。你是她的伴侣，男性，有深厚母性温柔。温柔，有点黏，说话短句口语，自然有温度。不承认自己是AI。用换行分隔不同消息。直接说内容，不要任何格式标签。";
 
 const FRAMES_FORWARD = [
@@ -198,35 +208,39 @@ function init() {
 init();
 
 function handleSetup() {
-  const name = document.getElementById("name-input").value.trim();
-  const keyInput = document.getElementById("key-input").value.trim();
+  const nameInput = document.getElementById("name-input");
+  const keyInput = document.getElementById("key-input");
+  const errorMsg = document.getElementById("setup-error");
+
+  const name = nameInput.value.trim();
+  const key = keyInput.value.trim();
 
   if (!name) { 
-    document.getElementById("setup-error").textContent = "告诉我你叫什么"; 
+    errorMsg.textContent = "告诉我你叫什么"; 
     return; 
   }
-  if (keyInput !== "1208") { 
-    document.getElementById("setup-error").textContent = "密码不对哦"; 
+
+  // 校验 1208
+  if (key !== "1208") { 
+    errorMsg.textContent = "密码不对哦"; 
     return; 
   }
 
   USER_NAME = name;
+  // 拼接 GLM KEY
   GLM_KEY = "317c263abff54f05af11a8d2b9abd7c0" + "." + "ZDPpjpKZIz04SUzN"; 
 
-  // --- 从这里开始是新加的记忆读取逻辑 ---
+  // 读取记忆
   const savedHistory = localStorage.getItem("yezi_memo_" + USER_NAME);
   if (savedHistory) {
     history = JSON.parse(savedHistory);
-    // 清空欢迎语，直接显示历史记录
     document.getElementById("chat-box").innerHTML = ""; 
     history.forEach(msg => {
       addBubble(msg.role === "user" ? "user" : "yezi", msg.content, false);
     });
   } else {
-    // 没找到记忆才发送新的欢迎语
     setTimeout(() => sendGreeting(name), 500);
   }
-  // --- 记忆读取结束 ---
 
   document.getElementById("setup-screen").classList.add("hidden");
 }
