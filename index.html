@@ -199,19 +199,36 @@ init();
 
 function handleSetup() {
   const name = document.getElementById("name-input").value.trim();
-  const key = document.getElementById("key-input").value.trim();
-  if (!name) { document.getElementById("setup-error").textContent = "告诉我你叫什么"; return; }
-  if (key !== "1208") { 
-  document.getElementById("setup-error").textContent = "密码不对哦"; 
-  return; 
-}
-USER_NAME = name;
-// 混淆拼接你的 GLM Key
-const _p1 = "317c263abff54f05af11a8d2b9abd7c0";
-const _p2 = "ZDPpjpKZIz04SUzN";
-GLM_KEY = _p1 + "." + _p2;
+  const keyInput = document.getElementById("key-input").value.trim();
+
+  if (!name) { 
+    document.getElementById("setup-error").textContent = "告诉我你叫什么"; 
+    return; 
+  }
+  if (keyInput !== "1208") { 
+    document.getElementById("setup-error").textContent = "密码不对哦"; 
+    return; 
+  }
+
+  USER_NAME = name;
+  GLM_KEY = "317c263abff54f05af11a8d2b9abd7c0" + "." + "ZDPpjpKZIz04SUzN"; 
+
+  // --- 从这里开始是新加的记忆读取逻辑 ---
+  const savedHistory = localStorage.getItem("yezi_memo_" + USER_NAME);
+  if (savedHistory) {
+    history = JSON.parse(savedHistory);
+    // 清空欢迎语，直接显示历史记录
+    document.getElementById("chat-box").innerHTML = ""; 
+    history.forEach(msg => {
+      addBubble(msg.role === "user" ? "user" : "yezi", msg.content, false);
+    });
+  } else {
+    // 没找到记忆才发送新的欢迎语
+    setTimeout(() => sendGreeting(name), 500);
+  }
+  // --- 记忆读取结束 ---
+
   document.getElementById("setup-screen").classList.add("hidden");
-  setTimeout(() => sendGreeting(name), 500);
 }
 
 async function sendGreeting(name) {
@@ -277,13 +294,20 @@ async function sendMessage() {
   document.getElementById("messages").scrollTop=99999;
   try {
   const SYSTEM_PROMPT = `你叫叶子，是一个温柔、细腻的男性。你正在和你的女朋友${USER_NAME}聊天。说话要自然、亲切。`;
-  const messages = [
-    { role: "user", content: SYSTEM_PROMPT },
-    ...history.slice(-10).map(m => ({
+  // --- 第三步：装载历史记忆 ---
+    const SYSTEM_PROMPT = `你叫叶子，是一个温柔、细腻的男性。你正在和你的女朋友${USER_NAME}聊天。说话要自然、亲切。`;
+    
+    // 从 history 数组里取最近的 10 条对话，让叶子有记忆
+    const memory = history.slice(-10).map(m => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.content
-    }))
-  ];
+    }));
+
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...memory
+    ];
+    // --- 记忆装载结束 ---
 
   const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
     method: "POST",
@@ -316,11 +340,11 @@ async function sendMessage() {
     }
 
     history.push({role: "assistant", content: reply});
-    localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
+
     updateMood(reply);
-    
+
   history.push({role: "assistant", content: reply});
-  localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
+  localStorage.setItem("yezi_memo_" + USER_NAME, JSON.stringify(history));
   updateMood(reply);
   } 
   catch(e) {
