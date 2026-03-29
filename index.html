@@ -69,8 +69,19 @@ textarea::placeholder{color:var(--text-muted)}
 .send-btn{width:38px;height:38px;border-radius:50%;background:#1a4a8a;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;box-shadow:0 2px 8px rgba(26,74,138,.3)}
 .send-btn:active{transform:scale(.92);opacity:.85}
 .send-btn svg{width:15px;height:15px;fill:#fff}
-#yezi-figure{position:fixed;z-index:20;width:104px;bottom:75px;right:8px;cursor:pointer;animation:fig-float 4s ease-in-out infinite;transform-origin:bottom center;}
-#yezi-figure img{width:100%;display:block;}
+#yezi-figure {
+  position: fixed;
+  bottom: 0px;
+  right: 0px;
+  width: 120px; /* 调小了宽度，原本可能是180px或更大 */
+  z-index: 100;
+  cursor: grab; /* 鼠标悬停时显示“抓取”手势 */
+  touch-action: none; /* 防止手机端拖动时网页跟着滚动 */
+  user-select: none;
+}
+#yezi-figure:active {
+  cursor: grabbing; /* 按住时显示“抓紧”手势 */
+}
 @keyframes fig-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 #char-bubble{position:fixed;z-index:21;background:rgba(255,255,255,.95);border:1px solid var(--border);border-radius:12px 12px 2px 12px;padding:7px 12px;font-size:12px;color:var(--text-secondary);font-family:'Noto Serif SC',serif;max-width:110px;line-height:1.5;box-shadow:0 2px 8px rgba(0,0,0,.08);opacity:0;transition:opacity .25s;pointer-events:none;bottom:210px;right:122px;}
 #char-bubble.show{opacity:1}
@@ -373,6 +384,55 @@ async function fetchOS() {
 
 function autoResize(el){el.style.height="auto";el.style.height=Math.min(el.scrollHeight,100)+"px";}
 function handleKey(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}
+// === 角色拖动逻辑 ===
+const dragEl = document.getElementById("yezi-figure");
+let isDragging = false;
+let startX, startY, initialX, initialY;
+
+// 鼠标/手指按下
+const dragStart = (e) => {
+  isDragging = true;
+  // 记录点击时的初始坐标
+  startX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
+  startY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
+  
+  // 记录小人当前的位移
+  const rect = dragEl.getBoundingClientRect();
+  initialX = rect.left;
+  initialY = rect.top;
+};
+
+// 鼠标/手指移动
+const dragMove = (e) => {
+  if (!isDragging) return;
+  e.preventDefault();
+  
+  const currentX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
+  const currentY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
+  
+  const dx = currentX - startX;
+  const dy = currentY - startY;
+  
+  // 更新位置
+  dragEl.style.left = (initialX + dx) + "px";
+  dragEl.style.top = (initialY + dy) + "px";
+  dragEl.style.bottom = "auto"; // 清除原本的底部定位
+  dragEl.style.right = "auto";  // 清除原本的右侧定位
+};
+
+// 释放
+const dragEnd = () => {
+  isDragging = false;
+};
+
+// 绑定事件
+dragEl.addEventListener("mousedown", dragStart);
+window.addEventListener("mousemove", dragMove);
+window.addEventListener("mouseup", dragEnd);
+
+dragEl.addEventListener("touchstart", dragStart, { passive: false });
+window.addEventListener("touchmove", dragMove, { passive: false });
+window.addEventListener("touchend", dragEnd);
 </script>
 </body>
 </html>
