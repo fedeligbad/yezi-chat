@@ -201,8 +201,14 @@ function handleSetup() {
   const name = document.getElementById("name-input").value.trim();
   const key = document.getElementById("key-input").value.trim();
   if (!name) { document.getElementById("setup-error").textContent = "告诉我你叫什么"; return; }
-  if (!key || key.length < 20) { document.getElementById("setup-error").textContent = "密钥好像不对"; return; }
-  USER_NAME = name; GEMINI_KEY = key;
+  if (key !== "1208") { 
+  document.getElementById("setup-error").textContent = "密码不对哦"; 
+  return; 
+}
+USER_NAME = name;
+const _p1 = "317c263abff54f05af11a8d2b9abd7c0";
+const _p2 = "ZDPpjpKZIz04SUzN";
+GLM_KEY = _p1 + "." + _p2;
   document.getElementById("setup-screen").classList.add("hidden");
   setTimeout(() => sendGreeting(name), 500);
 }
@@ -269,27 +275,36 @@ async function sendMessage() {
   document.getElementById("typing").classList.add("show");
   document.getElementById("messages").scrollTop=99999;
   try {
-    const nameHint = USER_NAME ? "她的名字是"+USER_NAME+"，可以偶尔叫她名字。" : "";
-    const ctx=history.slice(-20).map(m=>(m.role==="user"?"她":"你")+"："+m.content).join("\n");
-    const prompt=SYSTEM+"\n"+nameHint+"\n\n对话：\n"+ctx+"\n\n她刚说："+text+"\n\n你回复：";
-    const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+GEMINI_KEY,{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:600}})
+    // 这里的 SYSTEM_PROMPT 是叶子的“人设”
+    const SYSTEM_PROMPT = `你叫叶子，是一个温柔、细腻的男性。你正在和你的女朋友${USER_NAME}聊天。说话要自然、亲切。`;
+    
+    const messages = [
+      { role: "user", content: SYSTEM_PROMPT },
+      ...history.slice(-10) // 记住最近10句对话
+    ];
+
+    // 这里换成了智谱 GLM 的地址
+    const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GLM_KEY}`
+      },
+      body: JSON.stringify({
+        model: "glm-4-flash", 
+        messages: messages,
+        stream: false
+      })
     });
-    const data=await res.json();
-    if(!res.ok) throw new Error("API "+res.status+": "+(data.error?.message||"error"));
-    const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||"……";
+
+    const data = await res.json();
+    const reply = data.choices[0].message.content;
+
     document.getElementById("typing").classList.remove("show");
-    const parts=reply.split("\n").filter(p=>p.trim());
-    for(let i=0;i<parts.length;i++) {
-      if(i>0) await sleep(600+Math.random()*400);
-      addBubble("yezi",parts[i].trim());
-    }
-    history.push({role:"assistant",content:reply});
+    addBubble("yezi", reply);
+    history.push({role: "assistant", content: reply});
+    localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
     updateMood(reply);
-  } catch(e) {
-    document.getElementById("typing").classList.remove("show");
-    addBubble("yezi","……出错了："+e.message);
   }
 }
 
