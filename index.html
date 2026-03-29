@@ -71,16 +71,18 @@ textarea::placeholder{color:var(--text-muted)}
 .send-btn:active{transform:scale(.92);opacity:.85}
 .send-btn svg{width:15px;height:15px;fill:#fff}
 
-/* 🛡️ 核心修复：人物缩小适配（适配所有移动设备屏幕） */
+/* 🛡️ 核心修复：人物缩小适配 & 拖拽支持 */
 #yezi-figure {
-  width: 30vw; /* 视口宽度的 30%，约三分之一 */
+  width: 30vw; /* 视口宽度的 30% */
   height: auto;
   position: fixed;
-  bottom: 15vh; /* 距离底部 15% 的屏幕高度 */
-  left: 50%;
-  transform: translateX(-50%); /* 居中对齐 */
+  bottom: 12vh; /* 距离底部 12% */
+  left: 35vw; /* 居中定位 (50vw - 15vw) 避免和拖拽代码冲突 */
   z-index: 100;
-  pointer-events: none; /* 🔑 关键：允许点击穿透小人 */
+  cursor: grab; /* 提示可以拖拽 */
+}
+#yezi-figure:active {
+  cursor: grabbing;
 }
 
 @keyframes fig-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
@@ -90,12 +92,80 @@ textarea::placeholder{color:var(--text-muted)}
 </head>
 <body>
 <div class="app">
-<div class="setup-screen" id="setup-screen">
-<img src="https://image.yeci.workers.dev/image_ee6f83.jpg" id="yezi-figure">
+  <div class="setup-screen" id="setup-screen">
+    <img src="./image_ee6f83.jpg" class="setup-avatar" id="setup-avatar-img">
+    <div class="setup-title">叶子</div>
+    <div class="setup-sub">请输入你的名字和密码</div>
+    <div class="setup-fields">
+      <input type="text" id="name-input" class="setup-input" placeholder="你的名字">
+      <input type="password" id="key-input" class="setup-input" placeholder="密码 (1208)">
+      <button id="setup-btn" class="setup-btn">进入</button>
+      <div id="setup-error" class="setup-error"></div>
+    </div>
+  </div>
+
+  <div class="header">
+    <div class="profile-section">
+      <div class="avatar-wrap">
+        <div class="avatar-ring"></div>
+        <img src="./image_ee6f83.jpg" class="avatar" id="yezi-img">
+      </div>
+      <div class="name">叶子</div>
+    </div>
+    <div class="info-strip">
+      <div class="info-card">
+        <div class="info-label">在一起</div>
+        <div class="info-value accent" id="days-together">第 0 天</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">天气</div>
+        <div class="info-value" id="weather-val">获取中...</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">在做</div>
+        <div class="info-value warm" id="mood-val">发呆</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="os-toggle" id="os-toggle" onclick="toggleOS()">内心</div>
+    <div class="os-card" id="os-card">
+      <div class="os-text" id="os-text">...</div>
+    </div>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="typing" id="typing">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea id="input" rows="1" placeholder="说点什么..." oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea>
+    </div>
+    <div class="send-btn" id="send-btn">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </div>
+  </div>
 </div>
 
+<img src="./image_ee6f83.jpg" id="yezi-figure">
+<div id="char-bubble"></div>
+
 <script>
-// 这里是你的 script 的开头部分
+// 🛡️ 补充缺失的全局变量，防止报错白屏
+let USER_NAME = "";
+let history = [];
+const START_DATE = new Date("2024-03-27"); 
+let isAnimating = false;
+let atEnd = false;
+let bubbleTimer;
+const FRAMES_FORWARD = ["./image_ee6f83.jpg"];
+const FRAMES_BACKWARD = ["./image_ee6f83.jpg"];
+const PHRASES = {
+  0: ["怎么了？", "我在听。"],
+  5: ["嗯？", "看着你呢。"]
+};
 
 function showBubble(text) {
   const b = document.getElementById("char-bubble");
@@ -108,7 +178,7 @@ function showBubble(text) {
 async function playAnimation(frameList) {
   isAnimating = true;
   for (const src of frameList) {
-    document.getElementById("yezi-img").src = src;
+    document.getElementById("yezi-figure").src = src; // 统一修改为作用于大图
     await sleep(300);
   }
   isAnimating = false;
@@ -119,23 +189,21 @@ function onCharClick() {
   if (!atEnd) {
     atEnd = true;
     playAnimation(FRAMES_FORWARD);
-    const p = PHRASES[5];
+    const p = PHRASES[5] || ["..."];
     setTimeout(() => showBubble(p[Math.floor(Math.random()*p.length)]), 300*FRAMES_FORWARD.length);
   } else {
     atEnd = false;
     playAnimation(FRAMES_BACKWARD);
-    const p = PHRASES[0];
+    const p = PHRASES[0] || ["..."];
     setTimeout(() => showBubble(p[Math.floor(Math.random()*p.length)]), 300*FRAMES_BACKWARD.length);
   }
 }
 
+// 绑定点击对话事件
 const figEl = document.getElementById("yezi-figure");
 let figTouched = false;
-figEl.addEventListener("touchstart", function(e) {
-  e.preventDefault(); figTouched = true; onCharClick();
-}, {passive:false});
 figEl.addEventListener("click", function(e) {
-  if (!figTouched) onCharClick(); figTouched = false;
+  if (!isDragging) onCharClick(); // 如果不是在拖动，就触发对话
 });
 
 document.getElementById("setup-btn").addEventListener("click", handleSetup);
@@ -159,11 +227,9 @@ function handleSetup() {
   USER_NAME = name; 
   document.getElementById("setup-screen").classList.add("hidden");
 
-  // 尝试从本地加载记忆
   const savedHistory = localStorage.getItem("yezi_chat_history_" + name);
   if (savedHistory) {
     history = JSON.parse(savedHistory);
-    // 渲染历史气泡
     history.forEach(msg => {
       addBubble(msg.role === "user" ? "user" : "yezi", msg.content, false);
     });
@@ -173,18 +239,9 @@ function handleSetup() {
   }
 }
 
-// 保存记忆到本地
 function saveToLocal() {
   if (USER_NAME) {
     localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
-  }
-}
-
-// 清除记忆（可以在控制台运行或加个按钮）
-function clearMemory() {
-  if (confirm("确定要让叶子忘记一切吗？")) {
-    localStorage.removeItem("yezi_chat_history_" + USER_NAME);
-    location.reload();
   }
 }
 
@@ -209,7 +266,7 @@ async function sendGreeting(name) {
       addBubble("yezi", combined[i]);
     }
     history.push({role:"assistant", content:reply});
-    saveToLocal(); // 存档
+    saveToLocal();
   } catch(e) {
     document.getElementById("typing").classList.remove("show");
     addBubble("yezi", "嗯，" + name + "，你来了。");
@@ -265,7 +322,7 @@ async function sendMessage() {
     }
 
     history.push({role:"assistant",content:reply});
-    saveToLocal(); // 存档
+    saveToLocal();
     updateMood(reply);
   } catch(e) {
     document.getElementById("typing").classList.remove("show");
@@ -276,7 +333,6 @@ async function sendMessage() {
 function updateDays() {
   const diff = Math.floor((new Date()-START_DATE)/86400000)+1;
   document.getElementById("days-together").textContent="第 "+diff+" 天";
-  document.getElementById("days-inline").textContent=diff;
 }
 
 async function fetchWeather() {
@@ -326,28 +382,25 @@ async function fetchOS() {
 
 function autoResize(el){el.style.height="auto";el.style.height=Math.min(el.scrollHeight,100)+"px";}
 function handleKey(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}
+
 // === 角色拖动逻辑 ===
 const dragEl = document.getElementById("yezi-figure");
 let isDragging = false;
 let startX, startY, initialX, initialY;
 
-// 鼠标/手指按下
 const dragStart = (e) => {
-  isDragging = true;
-  // 记录点击时的初始坐标
+  if (e.target !== dragEl) return;
+  isDragging = false; // 初始按下不算拖拽
   startX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
   startY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
   
-  // 记录小人当前的位移
   const rect = dragEl.getBoundingClientRect();
   initialX = rect.left;
   initialY = rect.top;
 };
 
-// 鼠标/手指移动
 const dragMove = (e) => {
-  if (!isDragging) return;
-  e.preventDefault();
+  if (startX === undefined || startY === undefined) return; // 没按下就不管
   
   const currentX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
   const currentY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
@@ -355,26 +408,31 @@ const dragMove = (e) => {
   const dx = currentX - startX;
   const dy = currentY - startY;
   
-  // 更新位置
-  dragEl.style.left = (initialX + dx) + "px";
-  dragEl.style.top = (initialY + dy) + "px";
-  dragEl.style.bottom = "auto"; // 清除原本的底部定位
-  dragEl.style.right = "auto";  // 清除原本的右侧定位
+  // 如果移动距离超过 5 像素，才判定为拖拽（防止误触点击）
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+    isDragging = true;
+    e.preventDefault(); // 阻止滚动
+    dragEl.style.left = (initialX + dx) + "px";
+    dragEl.style.top = (initialY + dy) + "px";
+    dragEl.style.bottom = "auto"; 
+    dragEl.style.right = "auto";
+  }
 };
 
-// 释放
 const dragEnd = () => {
-  isDragging = false;
+  setTimeout(() => { isDragging = false; }, 50); // 延迟重置，防止触发点击
+  startX = undefined;
+  startY = undefined;
 };
 
-// 绑定事件
 dragEl.addEventListener("mousedown", dragStart);
-window.addEventListener("mousemove", dragMove);
+window.addEventListener("mousemove", dragMove, { passive: false });
 window.addEventListener("mouseup", dragEnd);
 
 dragEl.addEventListener("touchstart", dragStart, { passive: false });
 window.addEventListener("touchmove", dragMove, { passive: false });
 window.addEventListener("touchend", dragEnd);
+
 </script>
 </body>
 </html>
