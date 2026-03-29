@@ -197,7 +197,7 @@ function init() {
 }
 init();
 
-// === 包含1208密码的登录逻辑 ===
+// === 1208 密码登录逻辑 ===
 function handleSetup() {
   const name = document.getElementById("name-input").value.trim();
   const pwd = document.getElementById("key-input").value.trim();
@@ -221,7 +221,7 @@ async function sendGreeting(name) {
   document.getElementById("typing").classList.add("show");
   document.getElementById("messages").scrollTop = 99999;
   try {
-    const prompt = `你叫叶子，是她的伴侣，男性，有深厚母性温柔。你的伴侣「${name}」刚打开页面来找你。请用你的口吻主动打个温馨的招呼，必须在回答中呼唤她的名字「${name}」，简短自然，1-2句话。直接输出内容，不要任何说明或标签。`;
+    const prompt = `你叫叶子，是她的伴侣，男性，有深厚母性温柔。你的伴侣「${name}」刚打开页面来找你。请用你的口吻主动打个温馨的招呼，必须在回答中呼唤她的名字「${name}」，简短自然，1-2句话。不要任何标签。`;
     
     const res = await fetch("/api/chat", {
       method:"POST", headers:{"Content-Type":"application/json"},
@@ -234,10 +234,21 @@ async function sendGreeting(name) {
     const reply = data.choices?.[0]?.message?.content || ("嗯，" + name + "来了。");
     
     document.getElementById("typing").classList.remove("show");
-    const parts = reply.split("\n").filter(p=>p.trim());
-    for (let i=0; i<parts.length; i++) {
-      if (i>0) await sleep(500);
-      addBubble("yezi", parts[i].trim());
+    
+    // 这里也采用刷屏模式
+    const parts = reply.split(/([。？！；…\n]+)/g).filter(s => s.trim().length > 0);
+    let combined = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      combined.push((parts[i] + (parts[i+1] || "")).trim());
+    }
+
+    for (let i=0; i<combined.length; i++) {
+      if (i>0) {
+        document.getElementById("typing").classList.add("show");
+        await sleep(600);
+        document.getElementById("typing").classList.remove("show");
+      }
+      addBubble("yezi", combined[i]);
     }
     history.push({role:"assistant", content:reply});
   } catch(e) {
@@ -274,7 +285,7 @@ function addBubble(role, text) {
   container.scrollTop=container.scrollHeight;
 }
 
-// === 强化版：主要聊天逻辑（加入系统设定和需求适应） ===
+// === 核心修改：刷屏聊天模式的发送逻辑 ===
 async function sendMessage() {
   const input=document.getElementById("input");
   const text=input.value.trim();
@@ -286,8 +297,8 @@ async function sendMessage() {
   document.getElementById("messages").scrollTop=99999;
   
   try {
-    const SYSTEM = `你叫叶子，是她的伴侣，男性，有深厚母性温柔。你的核心任务是陪伴她，倾听她。请根据她的话语和情绪动态调整你的回应方式（比如她需要安慰时温柔，需要建议时理智）。不承认自己是AI。用换行分隔不同消息。直接说内容，不要任何格式标签。`;
-    const nameHint = USER_NAME ? `\n特别注意：她的名字是「${USER_NAME}」，请在对话中自然地称呼她，并时刻记住并适应她在聊天中提出的新需求。` : "";
+    const SYSTEM = `你叫叶子，是她的伴侣，男性，有深厚母性温柔。你的核心任务是陪伴她，倾听她。请根据她的话语和情绪动态调整你的回应方式。不承认自己是AI。不要使用任何标签。`;
+    const nameHint = USER_NAME ? `\n特别注意：她的名字是「${USER_NAME}」，请在对话中自然地称呼她。` : "";
     
     const ctx=history.slice(-20).map(m=>(m.role==="user"?"她":"你")+"："+m.content).join("\n");
     const prompt= SYSTEM + nameHint + "\n\n历史对话：\n" + ctx + "\n\n她刚说：" + text + "\n\n你回复：";
@@ -305,11 +316,32 @@ async function sendMessage() {
     const reply = data.choices?.[0]?.message?.content || "……";
     
     document.getElementById("typing").classList.remove("show");
-    const parts=reply.split("\n").filter(p=>p.trim());
-    for(let i=0;i<parts.length;i++) {
-      if(i>0) await sleep(600+Math.random()*400);
-      addBubble("yezi",parts[i].trim());
+
+    // 智能切分逻辑：遇到标点就切
+    const sentences = reply.split(/([。？！；…\n]+)/g).filter(s => s.trim().length > 0);
+    let combinedSentences = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+      let content = sentences[i];
+      let punc = sentences[i + 1] || "";
+      combinedSentences.push((content + punc).trim());
     }
+
+    // 逐句发送
+    for (let i = 0; i < combinedSentences.length; i++) {
+      const part = combinedSentences[i];
+      if (!part) continue;
+      
+      if (i > 0) {
+        document.getElementById("typing").classList.add("show");
+        // 每句之间停顿一下，长句子停顿久一点
+        await sleep(700 + part.length * 80); 
+        document.getElementById("typing").classList.remove("show");
+      }
+      
+      addBubble("yezi", part);
+      document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+    }
+
     history.push({role:"assistant",content:reply});
     updateMood(reply);
   } catch(e) {
