@@ -186,9 +186,7 @@ figEl.addEventListener("click", function(e) {
 });
 
 document.getElementById("setup-btn").addEventListener("click", handleSetup);
-document.getElementById("setup-btn").addEventListener("touchend", function(e){ e.preventDefault(); handleSetup(); });
 document.getElementById("send-btn").addEventListener("click", sendMessage);
-document.getElementById("send-btn").addEventListener("touchend", function(e){ e.preventDefault(); sendMessage(); });
 
 function init() {
   document.getElementById("yezi-img").src = FRAMES_FORWARD[0];
@@ -197,63 +195,128 @@ function init() {
 }
 init();
 
-// === 1208 密码登录逻辑 ===
+// === 登录与记忆加载逻辑 ===
 function handleSetup() {
   const name = document.getElementById("name-input").value.trim();
   const pwd = document.getElementById("key-input").value.trim();
   
-  if (!name) { 
-    document.getElementById("setup-error").textContent = "告诉我你叫什么"; 
-    return; 
-  }
-  if (pwd !== "1208") { 
-    document.getElementById("setup-error").textContent = "密码不对哦"; 
-    return; 
-  }
+  if (!name) { document.getElementById("setup-error").textContent = "告诉我你叫什么"; return; }
+  if (pwd !== "1208") { document.getElementById("setup-error").textContent = "密码不对哦"; return; }
   
   USER_NAME = name; 
   document.getElementById("setup-screen").classList.add("hidden");
-  setTimeout(() => sendGreeting(name), 500);
+
+  // 尝试从本地加载记忆
+  const savedHistory = localStorage.getItem("yezi_chat_history_" + name);
+  if (savedHistory) {
+    history = JSON.parse(savedHistory);
+    // 渲染历史气泡
+    history.forEach(msg => {
+      addBubble(msg.role === "user" ? "user" : "yezi", msg.content, false);
+    });
+    addBubble("yezi", "欢迎回来，" + name + "。我们继续聊吧？", true);
+  } else {
+    setTimeout(() => sendGreeting(name), 500);
+  }
 }
 
-// === 强化版：主动打招呼逻辑（强制叫名字） ===
+// 保存记忆到本地
+function saveToLocal() {
+  if (USER_NAME) {
+    localStorage.setItem("yezi_chat_history_" + USER_NAME, JSON.stringify(history));
+  }
+}
+
+// 清除记忆（可以在控制台运行或加个按钮）
+function clearMemory() {
+  if (confirm("确定要让叶子忘记一切吗？")) {
+    localStorage.removeItem("yezi_chat_history_" + USER_NAME);
+    location.reload();
+  }
+}
+
 async function sendGreeting(name) {
   document.getElementById("typing").classList.add("show");
-  document.getElementById("messages").scrollTop = 99999;
   try {
-    const prompt = `你叫叶子，是她的伴侣，男性，有深厚母性温柔。你的伴侣「${name}」刚打开页面来找你。请用你的口吻主动打个温馨的招呼，必须在回答中呼唤她的名字「${name}」，简短自然，1-2句话。不要任何标签。`;
-    
+    const prompt = `你叫叶子，是她的伴侣，男性，温柔。伴侣「${name}」刚来找你。请主动打招呼，必须呼唤名字「${name}」，简短1-2句。`;
     const res = await fetch("/api/chat", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        messages: [{role: "user", content: prompt}],
-        maxTokens: 150
-      })
+      body: JSON.stringify({ messages: [{role: "user", content: prompt}], maxTokens: 150 })
     });
     const data = await res.json();
     const reply = data.choices?.[0]?.message?.content || ("嗯，" + name + "来了。");
-    
     document.getElementById("typing").classList.remove("show");
     
-    // 这里也采用刷屏模式
     const parts = reply.split(/([。？！；…\n]+)/g).filter(s => s.trim().length > 0);
     let combined = [];
-    for (let i = 0; i < parts.length; i += 2) {
-      combined.push((parts[i] + (parts[i+1] || "")).trim());
-    }
+    for (let i = 0; i < parts.length; i += 2) { combined.push((parts[i] + (parts[i+1] || "")).trim()); }
 
     for (let i=0; i<combined.length; i++) {
-      if (i>0) {
-        document.getElementById("typing").classList.add("show");
-        await sleep(600);
-        document.getElementById("typing").classList.remove("show");
-      }
+      if (i>0) { document.getElementById("typing").classList.add("show"); await sleep(600); document.getElementById("typing").classList.remove("show"); }
       addBubble("yezi", combined[i]);
     }
     history.push({role:"assistant", content:reply});
+    saveToLocal(); // 存档
   } catch(e) {
     document.getElementById("typing").classList.remove("show");
-    addBubble("yezi", "嗯，" + name + "，来了。");
+    addBubble("yezi", "嗯，" + name + "，你来了。");
+  }
+}
+
+function addBubble(role, text, shouldScroll = true) {
+  const container=document.getElementById("messages");
+  const typing=document.getElementById("typing");
+  const msg=document.createElement("div");
+  msg.className="msg "+role;
+  const now=new Date();
+  const time=now.getHours().toString().padStart(2,"0")+":"+now.getMinutes().toString().padStart(2,"0");
+  msg.innerHTML='<div class="bubble">'+text.replace(/</g,"&lt;")+'</div><div class="msg-time">'+time+'</div>';
+  container.insertBefore(msg, typing);
+  if (shouldScroll) container.scrollTop=container.scrollHeight;
+}
+
+async function sendMessage() {
+  const input=document.getElementById("input");
+  const text=input.value.trim();
+  if(!text) return;
+  input.value=""; autoResize(input);
+  history.push({role:"user",content:text});
+  addBubble("user",text);
+  document.getElementById("typing").classList.add("show");
+  
+  try {
+    const SYSTEM = `你叫叶子，是她的伴侣，男性，温柔。根据她的话语调整回应。不承认是AI。`;
+    const nameHint = `\n注意：她的名字是「${USER_NAME}」。`;
+    const ctx=history.slice(-15).map(m=>(m.role==="user"?"她":"你")+"："+m.content).join("\n");
+    const prompt= SYSTEM + nameHint + "\n\n历史对话：\n" + ctx + "\n\n她刚说：" + text + "\n\n你回复：";
+    
+    const res = await fetch("/api/chat", {
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ messages:[{role:"user", content:prompt}], maxTokens:600 })
+    });
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || "……";
+    document.getElementById("typing").classList.remove("show");
+
+    const sentences = reply.split(/([。？！；…\n]+)/g).filter(s => s.trim().length > 0);
+    let combinedSentences = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+      combinedSentences.push((sentences[i] + (sentences[i+1] || "")).trim());
+    }
+
+    for (let i = 0; i < combinedSentences.length; i++) {
+      const part = combinedSentences[i];
+      if (!part) continue;
+      if (i > 0) { document.getElementById("typing").classList.add("show"); await sleep(700 + part.length * 80); document.getElementById("typing").classList.remove("show"); }
+      addBubble("yezi", part);
+    }
+
+    history.push({role:"assistant",content:reply});
+    saveToLocal(); // 存档
+    updateMood(reply);
+  } catch(e) {
+    document.getElementById("typing").classList.remove("show");
+    addBubble("yezi","网络似乎开小差了...");
   }
 }
 
@@ -271,83 +334,6 @@ async function fetchWeather() {
     const descs={0:"晴",1:"多云",2:"多云",3:"阴",45:"有雾",51:"小雨",61:"下雨",80:"阵雨",95:"雷暴"};
     document.getElementById("weather-val").textContent=(descs[code]||"—")+" "+temp+"°";
   }catch(e){}
-}
-
-function addBubble(role, text) {
-  const container=document.getElementById("messages");
-  const typing=document.getElementById("typing");
-  const msg=document.createElement("div");
-  msg.className="msg "+role;
-  const now=new Date();
-  const time=now.getHours().toString().padStart(2,"0")+":"+now.getMinutes().toString().padStart(2,"0");
-  msg.innerHTML='<div class="bubble">'+text.replace(/</g,"&lt;")+'</div><div class="msg-time">'+time+'</div>';
-  container.insertBefore(msg, typing);
-  container.scrollTop=container.scrollHeight;
-}
-
-// === 核心修改：刷屏聊天模式的发送逻辑 ===
-async function sendMessage() {
-  const input=document.getElementById("input");
-  const text=input.value.trim();
-  if(!text) return;
-  input.value=""; autoResize(input);
-  history.push({role:"user",content:text});
-  addBubble("user",text);
-  document.getElementById("typing").classList.add("show");
-  document.getElementById("messages").scrollTop=99999;
-  
-  try {
-    const SYSTEM = `你叫叶子，是她的伴侣，男性，有深厚母性温柔。你的核心任务是陪伴她，倾听她。请根据她的话语和情绪动态调整你的回应方式。不承认自己是AI。不要使用任何标签。`;
-    const nameHint = USER_NAME ? `\n特别注意：她的名字是「${USER_NAME}」，请在对话中自然地称呼她。` : "";
-    
-    const ctx=history.slice(-20).map(m=>(m.role==="user"?"她":"你")+"："+m.content).join("\n");
-    const prompt= SYSTEM + nameHint + "\n\n历史对话：\n" + ctx + "\n\n她刚说：" + text + "\n\n你回复：";
-    
-    const res = await fetch("/api/chat", {
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        messages:[{role:"user", content:prompt}],
-        maxTokens:600
-      })
-    });
-    
-    const data = await res.json();
-    if(!res.ok) throw new Error("API出错了");
-    const reply = data.choices?.[0]?.message?.content || "……";
-    
-    document.getElementById("typing").classList.remove("show");
-
-    // 智能切分逻辑：遇到标点就切
-    const sentences = reply.split(/([。？！；…\n]+)/g).filter(s => s.trim().length > 0);
-    let combinedSentences = [];
-    for (let i = 0; i < sentences.length; i += 2) {
-      let content = sentences[i];
-      let punc = sentences[i + 1] || "";
-      combinedSentences.push((content + punc).trim());
-    }
-
-    // 逐句发送
-    for (let i = 0; i < combinedSentences.length; i++) {
-      const part = combinedSentences[i];
-      if (!part) continue;
-      
-      if (i > 0) {
-        document.getElementById("typing").classList.add("show");
-        // 每句之间停顿一下，长句子停顿久一点
-        await sleep(700 + part.length * 80); 
-        document.getElementById("typing").classList.remove("show");
-      }
-      
-      addBubble("yezi", part);
-      document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
-    }
-
-    history.push({role:"assistant",content:reply});
-    updateMood(reply);
-  } catch(e) {
-    document.getElementById("typing").classList.remove("show");
-    addBubble("yezi","网络似乎开小差了...");
-  }
 }
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
@@ -372,24 +358,15 @@ async function fetchOS() {
   }
   try {
     const ctx = history.slice(-6).map(m => (m.role === "user" ? "她" : "你") + "：" + m.content).join(" | ");
-    const prompt = "你是叶子，根据最近对话写一段真实内心想法（她看不到）。50字以内，第一人称。对话：" + ctx;
-
+    const prompt = "你是叶子，根据最近对话写一段真实内心想法。50字以内。对话：" + ctx;
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: prompt }],
-        maxTokens: 150
-      })
+      body: JSON.stringify({ messages: [{ role: "user", content: prompt }], maxTokens: 150 })
     });
     const data = await res.json();
-    if (data.choices && data.choices.length > 0) {
-      document.getElementById("os-text").textContent = data.choices[0].message.content;
-    } else {
-      document.getElementById("os-text").textContent = "叶子正在发呆...";
-    }
+    document.getElementById("os-text").textContent = data.choices?.[0]?.message?.content || "叶子正在发呆...";
   } catch (error) {
-    console.error(error);
     document.getElementById("os-text").textContent = "网络似乎开小差了...";
   }
 }
