@@ -116,101 +116,222 @@ textarea::placeholder{color:var(--text-muted)}
 </div>
 </div>
 <script>
-// 1. 登录跳转逻辑修复
-const setupBtn = document.querySelector('.setup-btn');
-const setupScreen = document.getElementById('setup-screen');
-const nameInput = document.getElementById('name-input');
-const userNameDisplay = document.querySelector('.name');
+<script>
+// --- 1. 核心变量定义 ---
+let USER_NAME = "";
+let GLM_KEY = "317c263abff54f05af11a8d2b9abd7c0.ZDPpjpKZIz04SUzN";
+let history = [];
 
-setupBtn.addEventListener('click', () => {
-    const nameValue = nameInput.value.trim();
-    if (nameValue) {
-        // 更新页面上的名字
-        userNameDisplay.textContent = nameValue;
-        // 隐藏登录遮罩层
-        setupScreen.classList.add('hidden');
-        // 可选：将名字保存到本地
-        localStorage.setItem('yezi_user_name', nameValue);
-    } else {
-        document.querySelector('.setup-error').textContent = "请输入一个名字";
+// --- 2. 登录与专属打招呼逻辑 ---
+function handleSetup() {
+    // 兼容你的输入框 ID
+    const nameInput = document.getElementById("nickname") || document.getElementById("name-input");
+    const dateInput = document.getElementById("special-date");
+    const errorMsg = document.getElementById("setup-error");
+
+    const name = nameInput ? nameInput.value.trim() : "";
+    
+    if (!name) { 
+        if(errorMsg) errorMsg.textContent = "请告诉我你的昵称"; 
+        return; 
     }
-});
 
-// 2. 消息发送逻辑修复
-const textarea = document.querySelector('textarea');
-const sendBtn = document.querySelector('.send-btn');
-const messagesContainer = document.querySelector('.messages');
+    USER_NAME = name;
 
-function sendMessage() {
-    const text = textarea.value.trim();
-    if (text) {
-        // 创建用户消息气泡
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'msg user';
-        msgDiv.innerHTML = `
-            <div class="bubble">${text}</div>
-            <div class="msg-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-        `;
-        messagesContainer.appendChild(msgDiv);
-        
-        // 清空输入框
-        textarea.value = '';
-        
-        // 自动滚动到底部
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        // 模拟回复（可选）
-        setTimeout(() => {
-            const replyDiv = document.createElement('div');
-            replyDiv.className = 'msg yezi';
-            replyDiv.innerHTML = `
-                <div class="bubble">收到啦！</div>
-                <div class="msg-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-            `;
-            messagesContainer.appendChild(replyDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }, 1000);
+    // 隐藏登录页面
+    document.getElementById("setup-screen").classList.add("hidden");
+
+    // 读取该用户的专属记忆
+    const savedHistory = localStorage.getItem("yezi_memo_" + USER_NAME);
+    if (savedHistory) {
+        history = JSON.parse(savedHistory);
+        const box = document.getElementById("messages") || document.getElementById("chat-box");
+        box.innerHTML = ""; // 清空，加载历史
+        history.forEach(m => addBubble(m.role === "user" ? "user" : "yezi", m.content, false));
+    } else {
+        // 第一次来，触发专属打招呼
+        setTimeout(() => sendGreeting(name), 500);
     }
 }
 
-sendBtn.addEventListener('click', sendMessage);
-textarea.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
+function sendGreeting(name) {
+    const txt = "终于等到你了，" + name;
+    addBubble("yezi", txt);
+    history.push({role: "assistant", content: txt});
+    localStorage.setItem("yezi_memo_" + USER_NAME, JSON.stringify(history));
+}
 
-// 3. 拖拽逻辑保持原样（从你提供的修改1.txt中提取）
+// --- 3. 核心聊天对话逻辑（真实调用大模型） ---
+async function sendMessage() {
+    const input = document.getElementById("user-input");
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = "";
+    input.style.height = 'auto';
+    addBubble("user", text);
+    history.push({role: "user", content: text});
+    
+    const typing = document.getElementById("typing");
+    if(typing) typing.classList.add("show");
+
+    try {
+        const system = `你叫叶子，是一个温柔细腻的男性。你正在和女朋友${USER_NAME}聊天。说话自然、亲切。`;
+        const memory = history.slice(-10).map(m => ({
+            role: m.role === "user" ? "user" : "assistant",
+            content: m.content
+        }));
+
+        const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json", 
+                "Authorization": "Bearer " + GLM_KEY 
+            },
+            body: JSON.stringify({ 
+                model: "glm-4-flash", 
+                messages: [{role:"system",content:system}, ...memory] 
+            })
+        });
+
+        const data = await res.json();
+        const reply = data.choices[0].message.content;
+        
+        if(typing) typing.classList.remove("show");
+
+        addBubble("yezi", reply);
+        history.push({role: "assistant", content: reply});
+        
+        // 存入持久记忆
+        localStorage.setItem("yezi_memo_" + USER_NAME, JSON.stringify(history));
+        
+    } catch(e) {
+        if(typing) typing.classList.remove("show");
+        addBubble("yezi", "（叶子走神了，没听清你说什么，等会儿再聊吧）");
+    }
+}
+
+function addBubble(role, content, scroll=true) {
+    const box = document.getElementById("messages") || document.getElementById("chat-box");
+    const div = document.createElement("div");
+    div.className = `msg ${role}`;
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    div.innerHTML = `<div class="bubble">${content}</div><div class="msg-time">${time}</div>`;
+    box.appendChild(div);
+    if(scroll) box.scrollTop = box.scrollHeight;
+}
+
+// --- 4. 专属内心 OS 逻辑（真实调用大模型） ---
+let osVisible = false;
+function toggleOS() {
+    osVisible = !osVisible;
+    const card = document.getElementById("os-card");
+    const toggleBtn = document.getElementById("os-toggle");
+    
+    if(card) card.classList.toggle("visible", osVisible);
+    if(toggleBtn) toggleBtn.textContent = osVisible ? "收起" : "内心";
+    
+    if(osVisible) fetchOS();
+}
+
+async function fetchOS() {
+    const osTxt = document.getElementById("os-text");
+    if(!osTxt) return;
+    
+    if(history.length === 0) { 
+        osTxt.textContent = "还没跟你聊过天，心里空空的……"; 
+        return; 
+    }
+    osTxt.textContent = "叶子正在写日记...";
+
+    try {
+        const ctx = history.slice(-5).map(m => (m.role === "user" ? "她" : "我") + "说：" + m.content).join("\n");
+        const osPrompt = `你是叶子。根据以下和女朋友${USER_NAME}的对话，写一段你现在的真实内心独白。要求：极度感性、细腻、第一人称、不要超过40字，不要出现特殊符号。对话内容：\n${ctx}`;
+
+        const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${GLM_KEY}`
+            },
+            body: JSON.stringify({
+                model: "glm-4-flash",
+                messages: [{ role: "user", content: osPrompt }]
+            })
+        });
+
+        const data = await res.json();
+        osTxt.textContent = data.choices[0].message.content;
+    } catch (e) {
+        osTxt.textContent = "（叶子现在心乱如麻，写不出东西...）";
+    }
+}
+
+// --- 5. 像素人拖拽与点击说话逻辑 ---
 const fig = document.getElementById('yezi-figure');
-let isMoving = false;
-let startX, startY, initialX, initialY;
+if(fig) {
+    let isMoving = false;
+    let startX, startY, initialX, initialY;
 
-fig.addEventListener("mousedown", (e) => {
-  isMoving = false;
-  startX = e.clientX; startY = e.clientY;
-  const rect = fig.getBoundingClientRect();
-  initialX = rect.left; initialY = rect.top;
-  
-  const onMouseMove = (ev) => {
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-      isMoving = true;
-      fig.style.left = initialX + dx + "px";
-      fig.style.top = initialY + dy + "px";
-      fig.style.bottom = "auto"; fig.style.right = "auto";
-    }
-  };
-  
-  const onMouseUp = () => {
-    document.removeEventListener("mousemove", onMouseMove);
-    document.removeEventListener("mouseup", onMouseUp);
-  };
-  document.addEventListener("mousemove", onMouseMove);
-  document.addEventListener("mouseup", onMouseUp);
-});
-// ... 手机端适配同理
+    const startDrag = (e) => {
+        isMoving = false;
+        const touch = e.type === 'touchstart' ? e.touches[0] : e;
+        startX = touch.clientX; startY = touch.clientY;
+        const rect = fig.getBoundingClientRect();
+        initialX = rect.left; initialY = rect.top;
+        
+        const onMove = (ev) => {
+            const moveTouch = ev.type === 'touchmove' ? ev.touches[0] : ev;
+            const dx = moveTouch.clientX - startX;
+            const dy = moveTouch.clientY - startY;
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                isMoving = true;
+                fig.style.left = initialX + dx + "px";
+                fig.style.top = initialY + dy + "px";
+                fig.style.bottom = "auto"; fig.style.right = "auto";
+            }
+        };
+        
+        const endDrag = () => {
+            document.removeEventListener(e.type === 'touchstart' ? "touchmove" : "mousemove", onMove);
+            document.removeEventListener(e.type === 'touchstart' ? "touchend" : "mouseup", endDrag);
+        };
+        
+        document.addEventListener(e.type === 'touchstart' ? "touchmove" : "mousemove", onMove, {passive: false});
+        document.addEventListener(e.type === 'touchstart' ? "touchend" : "mouseup", endDrag);
+    };
+
+    fig.addEventListener("mousedown", startDrag);
+    fig.addEventListener("touchstart", startDrag, {passive: false});
+
+    // 像素人点击弹出气泡
+    fig.addEventListener('click', () => {
+        if(!isMoving) {
+            const bubble = document.getElementById('char-bubble');
+            if(!bubble) return;
+            const quotes = ["想我了吗？", "今天真好看。", "摸摸头~", "一直在呢。", "要抱抱吗？"];
+            bubble.textContent = quotes[Math.floor(Math.random() * quotes.length)];
+            bubble.classList.add('show');
+            setTimeout(() => bubble.classList.remove('show'), 2500);
+        }
+    });
+}
+
+// --- 6. 回车键发送与输入框高度自适应 ---
+const userInputArea = document.getElementById("user-input");
+if(userInputArea) {
+    userInputArea.addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    userInputArea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+}
+</script>
 </script>
 </body>
 </html>
