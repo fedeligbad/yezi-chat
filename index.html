@@ -93,7 +93,7 @@ textarea::placeholder{color:var(--text-muted)}
 <body>
 <div class="app">
   <div class="setup-screen" id="setup-screen">
-    <img src="./image_ee6f83.jpg" class="setup-avatar" id="setup-avatar-img">
+    <img src="https://image.yeci.workers.dev/image_ee6f83.jpg" class="setup-avatar" id="setup-avatar-img">
     <div class="setup-title">叶子</div>
     <div class="setup-sub">请输入你的名字和密码</div>
     <div class="setup-fields">
@@ -108,7 +108,7 @@ textarea::placeholder{color:var(--text-muted)}
     <div class="profile-section">
       <div class="avatar-wrap">
         <div class="avatar-ring"></div>
-        <img src="./image_ee6f83.jpg" class="avatar" id="yezi-img">
+        <img src="https://image.yeci.workers.dev/image_ee6f83.jpg" class="avatar" id="yezi-img">
       </div>
       <div class="name">叶子</div>
     </div>
@@ -149,19 +149,18 @@ textarea::placeholder{color:var(--text-muted)}
   </div>
 </div>
 
-<img src="./image_ee6f83.jpg" id="yezi-figure">
+<img src="https://image.yeci.workers.dev/image_ee6f83.jpg" id="yezi-figure">
 <div id="char-bubble"></div>
 
 <script>
-// 🛡️ 补充缺失的全局变量，防止报错白屏
 let USER_NAME = "";
 let history = [];
 const START_DATE = new Date("2024-03-27"); 
 let isAnimating = false;
 let atEnd = false;
 let bubbleTimer;
-const FRAMES_FORWARD = ["./image_ee6f83.jpg"];
-const FRAMES_BACKWARD = ["./image_ee6f83.jpg"];
+const FRAMES_FORWARD = ["https://image.yeci.workers.dev/image_ee6f83.jpg"];
+const FRAMES_BACKWARD = ["https://image.yeci.workers.dev/image_ee6f83.jpg"];
 const PHRASES = {
   0: ["怎么了？", "我在听。"],
   5: ["嗯？", "看着你呢。"]
@@ -178,7 +177,7 @@ function showBubble(text) {
 async function playAnimation(frameList) {
   isAnimating = true;
   for (const src of frameList) {
-    document.getElementById("yezi-figure").src = src; // 统一修改为作用于大图
+    document.getElementById("yezi-figure").src = src; 
     await sleep(300);
   }
   isAnimating = false;
@@ -199,11 +198,10 @@ function onCharClick() {
   }
 }
 
-// 绑定点击对话事件
 const figEl = document.getElementById("yezi-figure");
 let figTouched = false;
 figEl.addEventListener("click", function(e) {
-  if (!isDragging) onCharClick(); // 如果不是在拖动，就触发对话
+  if (!isDragging) onCharClick(); 
 });
 
 document.getElementById("setup-btn").addEventListener("click", handleSetup);
@@ -216,7 +214,6 @@ function init() {
 }
 init();
 
-// === 登录与记忆加载逻辑 ===
 function handleSetup() {
   const name = document.getElementById("name-input").value.trim();
   const pwd = document.getElementById("key-input").value.trim();
@@ -383,14 +380,13 @@ async function fetchOS() {
 function autoResize(el){el.style.height="auto";el.style.height=Math.min(el.scrollHeight,100)+"px";}
 function handleKey(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}
 
-// === 角色拖动逻辑 ===
 const dragEl = document.getElementById("yezi-figure");
 let isDragging = false;
 let startX, startY, initialX, initialY;
 
 const dragStart = (e) => {
   if (e.target !== dragEl) return;
-  isDragging = false; // 初始按下不算拖拽
+  isDragging = false; 
   startX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
   startY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
   
@@ -400,7 +396,7 @@ const dragStart = (e) => {
 };
 
 const dragMove = (e) => {
-  if (startX === undefined || startY === undefined) return; // 没按下就不管
+  if (startX === undefined || startY === undefined) return; 
   
   const currentX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
   const currentY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
@@ -408,10 +404,9 @@ const dragMove = (e) => {
   const dx = currentX - startX;
   const dy = currentY - startY;
   
-  // 如果移动距离超过 5 像素，才判定为拖拽（防止误触点击）
   if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
     isDragging = true;
-    e.preventDefault(); // 阻止滚动
+    e.preventDefault(); 
     dragEl.style.left = (initialX + dx) + "px";
     dragEl.style.top = (initialY + dy) + "px";
     dragEl.style.bottom = "auto"; 
@@ -420,7 +415,7 @@ const dragMove = (e) => {
 };
 
 const dragEnd = () => {
-  setTimeout(() => { isDragging = false; }, 50); // 延迟重置，防止触发点击
+  setTimeout(() => { isDragging = false; }, 50); 
   startX = undefined;
   startY = undefined;
 };
